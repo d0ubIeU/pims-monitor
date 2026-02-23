@@ -2,35 +2,45 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
-const BFDI_URL = 'https://www.bfdi.bund.de';
+const BFDI_URL = 'https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html';
 const DATA_FILE = './pims_registry.json';
 
 async function monitorBfdiRegistry() {
     try {
-        const { data } = await axios.get(BFDI_URL);
-        const $ = cheerio.load(data);
-        const pageContent = $('#main').text() || $('body').text();
+        // Wir setzen einen User-Agent, damit die BfDI uns nicht als "Bot" blockiert
+        const { data } = await axios.get(BFDI_URL, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
         
-        const namePattern = /Name des Dienstes:\s*([^\n<]+)/g;
+        const $ = cheerio.load(data);
+        
+        // Wir nehmen den gesamten Body-Text und entfernen überflüssige Leerzeichen/Umbrüche
+        const fullText = $('body').text().replace(/\s+/g, ' ');
+        
+        // Verfeinerter Regex: Sucht nach "Name des Dienstes:" gefolgt von Text bis zum nächsten Label
+        const namePattern = /Name des Dienstes:\s*([^Anbieter|Datum|Name]+)/g;
         let match;
         let currentProviders = [];
 
-        while ((match = namePattern.exec(pageContent)) !== null) {
-            currentProviders.push(match[1].trim());
+        while ((match = namePattern.exec(fullText)) !== null) {
+            let foundName = match[1].trim();
+            if (foundName.length > 2) {
+                currentProviders.push(foundName);
+            }
         }
+
         currentProviders = [...new Set(currentProviders)];
 
-        // --- INTEGRITÄTS-CHECK ---
-        // Wenn die Liste plötzlich leer ist, hat sich das HTML-Layout geändert!
+        // --- VERBESSERTER STRUKTUR-CHECK ---
         if (currentProviders.length === 0) {
-            throw new Error("STRUKTUR_AENDERUNG: Keine Anbieter gefunden. Pfad/Regex prüfen!");
+            // Debug-Ausgabe für das GitHub Log, falls es wieder scheitert
+            console.log("DEBUG - Seiteninhalt (Auszug):", fullText.substring(0, 500));
+            throw new Error("STRUKTUR_AENDERUNG: Kein Anbieter-Muster im Text gefunden.");
         }
 
         let oldProviders = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE)) : [];
         
-        // Check 1: Neue Einträge?
         const newEntries = currentProviders.filter(p => !oldProviders.includes(p));
-        // Check 2: Sind bekannte Einträge verschwunden? (Indiz für Layout-Änderung)
         const missingEntries = oldProviders.filter(p => !currentProviders.includes(p));
 
         if (newEntries.length > 0 || missingEntries.length > 0) {
@@ -40,15 +50,14 @@ async function monitorBfdiRegistry() {
                 throw new Error(`NEUE_PIMS_ENTDECKT: ${newEntries.join(', ')}`);
             }
             if (missingEntries.length > 0) {
-                throw new Error(`STRUKTUR_WARNHINWEIS: Bekannte Anbieter (${missingEntries.join(', ')}) nicht mehr gefunden!`);
+                throw new Error(`STRUKTUR_WARNHINWEIS: ${missingEntries.join(', ')} verschwunden!`);
             }
         } else {
-            console.log('✅ Alles stabil. Gelistet: ' + currentProviders.join(', '));
+            console.log('✅ Stand stabil: ' + currentProviders.join(', '));
         }
 
     } catch (error) {
-        // Wir lassen den Fehler absichtlich durchgehen, damit GitHub die Mail schickt
-        throw error;
+        throw error; // Reicht den Fehler an GitHub Actions für die Mail weiter
     }
 }
 
