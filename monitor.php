@@ -29,44 +29,64 @@ if (!$html) {
 }
 
 /**
- * PHASE 2: Parsing the HTML
- * We use DOMDocument and XPath for efficient and targeted data extraction.
+ * PHASE 2: Parsing the HTML (Improved Robustness)
  */
 $dom = new DOMDocument();
-// Suppress warnings for malformed HTML common on government sites
-@$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
+// Using LIBXML_NOERROR to ignore HTML5 warnings
+@$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_NOERROR | LIBXML_NOWARNING);
 $xpath = new DOMXPath($dom);
 
 $currentProviders = [];
 
 /**
- * TARGETED SEARCH: 
- * Based on the identified structure, we look for <p> tags 
- * inside the main content column that contain "Name des Dienstes:".
+ * IMPROVED SEARCH:
+ * We look for any text node containing "Name des Dienstes:" 
+ * within the content area to be less dependent on exact <p> structures.
  */
-$nodes = $xpath->query("//div[contains(@class, 'xlarge-7')]//p[contains(text(), 'Name des Dienstes:')]");
+$query = "//*[contains(text(), 'Name des Dienstes:')]";
+$nodes = $xpath->query($query);
 
 foreach ($nodes as $node) {
     $text = $node->textContent;
     
-    // Regex: Matches "Name des Dienstes:" and captures everything until the end of the line/tag
-    if (preg_match('/Name des Dienstes:\s*(.*)/', $text, $matches)) {
+    // Improved Regex: 
+    // 1. Look for "Name des Dienstes:"
+    // 2. Capture everything after the colon until the end of the string
+    if (preg_match('/Name des Dienstes:\s*(.+)/u', $text, $matches)) {
         $name = trim($matches[1]);
-        if (!empty($name)) {
+        
+        // Filter out placeholders or very short strings
+        if (!empty($name) && strlen($name) > 2) {
             $currentProviders[] = $name;
         }
     }
 }
 
-// Remove potential duplicates and reset array indices
+// Fallback: If still empty, let's try a broader search in the whole document
+if (empty($currentProviders)) {
+    // This catches cases where the text might be split across multiple nodes
+    foreach ($dom->getElementsByTagName('p') as $p) {
+        $text = $p->textContent;
+        if (strpos($text, 'Name des Dienstes:') !== false) {
+            $parts = explode('Name des Dienstes:', $text);
+            if (isset($parts[1])) {
+                $name = trim($parts[1]);
+                if (!empty($name)) $currentProviders[] = $name;
+            }
+        }
+    }
+}
+
 $currentProviders = array_values(array_unique($currentProviders));
 
 /**
  * PHASE 3: Stability Check
- * If no providers are found, the structure of the website likely changed.
  */
 if (empty($currentProviders)) {
-    echo "❌ Error: No providers found. The website structure might have changed!\n";
+    // Log a snippet of the HTML for debugging in GitHub Actions logs
+    echo "DEBUG: HTML Structure might have changed. Snippet:\n";
+    echo substr(strip_tags($html), 0, 500) . "...\n";
+    echo "❌ Error: No providers found.\n";
     exit(1);
 }
 
