@@ -7,39 +7,40 @@ const DATA_FILE = './pims_registry.json';
 
 async function monitorBfdiRegistry() {
     try {
-        // Wir setzen einen User-Agent, damit die BfDI uns nicht als "Bot" blockiert
         const { data } = await axios.get(BFDI_URL, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
         
         const $ = cheerio.load(data);
         
-        // Wir nehmen den gesamten Body-Text und entfernen überflüssige Leerzeichen/Umbrüche
-        const fullText = $('body').text().replace(/\s+/g, ' ');
-        
-        // Verfeinerter Regex: Sucht nach "Name des Dienstes:" gefolgt von Text bis zum nächsten Label
-        const namePattern = /Name des Dienstes:\s*([^Anbieter|Datum|Name]+)/g;
-        let match;
+        // Wir suchen jetzt gezielt nach dem Text "Name des Dienstes:"
+        // Da die BfDI <strong> nutzt, suchen wir in allen relevanten Tags
         let currentProviders = [];
-
-        while ((match = namePattern.exec(fullText)) !== null) {
-            let foundName = match[1].trim();
-            if (foundName.length > 2) {
-                currentProviders.push(foundName);
+        
+        $('*').each((i, el) => {
+            const text = $(el).text();
+            // Regex sucht nach "Name des Dienstes:" gefolgt von beliebigem Text bis zum Zeilenende oder Tag-Ende
+            const match = text.match(/Name des Dienstes:\s*([^\n\r<]+)/);
+            if (match && match[1]) {
+                const name = match[1].trim();
+                if (name.length > 2 && name !== "Consenter") { // "Consenter" filtern wir für den Test mal nicht aus
+                     currentProviders.push(name);
+                } else if (name === "Consenter") {
+                     currentProviders.push(name);
+                }
             }
-        }
+        });
 
         currentProviders = [...new Set(currentProviders)];
 
-        // --- VERBESSERTER STRUKTUR-CHECK ---
+        // --- STRUKTUR-CHECK ---
         if (currentProviders.length === 0) {
-            // Debug-Ausgabe für das GitHub Log, falls es wieder scheitert
-            console.log("DEBUG - Seiteninhalt (Auszug):", fullText.substring(0, 500));
-            throw new Error("STRUKTUR_AENDERUNG: Kein Anbieter-Muster im Text gefunden.");
+            // Wenn gar nichts gefunden wird, loggen wir zur Sicherheit das HTML-Snippet
+            console.log("DEBUG - HTML Snippet:", $('body').html().substring(0, 1000));
+            throw new Error("STRUKTUR_AENDERUNG: Kein Anbieter-Muster gefunden.");
         }
 
         let oldProviders = fs.existsSync(DATA_FILE) ? JSON.parse(fs.readFileSync(DATA_FILE)) : [];
-        
         const newEntries = currentProviders.filter(p => !oldProviders.includes(p));
         const missingEntries = oldProviders.filter(p => !currentProviders.includes(p));
 
@@ -57,7 +58,7 @@ async function monitorBfdiRegistry() {
         }
 
     } catch (error) {
-        throw error; // Reicht den Fehler an GitHub Actions für die Mail weiter
+        throw error;
     }
 }
 
