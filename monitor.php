@@ -12,13 +12,13 @@
  * 
  * Repository:     https://github.comhttps://github.com/d0ubIeU/pims-monitor
  * Author:         d0ubIeU
- * Date:           2024-05-22 (Initial Setup)
+ * Date:           2026-02-23 (Initial Setup)
  * License:        Mozilla Public License 2.0 (MPL 2.0)
  * License-URL:    https://www.mozilla.org/MPL/2.0/
  */
 
 // Configuration
-$bfdiUrl = 'https://www.bfdi.bund.de';
+$bfdiUrl = 'https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html';
 $dataFile = './pims_registry.json';
 
 // --- PHASE 1: Data Retrieval ---
