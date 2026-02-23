@@ -23,19 +23,16 @@ jobs:
       - name: Run Scraper
         id: scraper
         run: node index.js
-        continue-on-error: true # WICHTIG: Erlaubt den nächsten Schritt trotz Error
+        continue-on-error: true # Erlaubt den Push auch bei gefundenen Änderungen (Error)
 
       - name: Commit and Push if changed
         run: |
           git config --global user.name "PIMS-Bot"
           git config --global user.email "bot@github.com"
           git add pims_registry.json
-          # Nur committen, wenn sich der Inhalt der Datei geändert hat
+          # Nur committen und pushen, wenn sich die Datei tatsächlich geändert hat
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update PIMS Registry" && git push)
 
       - name: Trigger Email Alert
         if: steps.scraper.outcome == 'failure'
-        run: exit 1 # Erzeugt jetzt erst den Error für die E-Mail-Benachrichtigung        
-          git add pims_registry.json
-          git commit -m "Update PIMS Registry" || exit 0
-          git push
+        run: exit 1 # Erzeugt den Status "Failed" für die E-Mail-Benachrichtigung
