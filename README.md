@@ -10,7 +10,7 @@ As a website operator, if you choose to suppress your cookie banner based on a P
 ## 🔍 Why Web Scraping?
 This repository uses web scraping out of technical necessity. According to the German ordinance, website operators must verify the recognition status of a PIMS provider. 
 
-However, as of early 2026, the German authorities (**BfDI** and **BNetzA**) have not yet provided a standardized, machine-readable interface (API) or a central "Trust List" (similar to SSL/TLS certificate authorities) for this purpose. The only official source of truth is a legacy HTML page. Consequently, automated web scraping is currently the only viable method for developers to fulfill their legal "Duty of Care" without manual, inefficient daily checks of government websites.
+However, as of early 2026, the German authorities (**BfDI** and **BNetzA**) have not yet provided a standardized, machine-readable interface (API) or a central "Trust List" for this purpose. The only official source of truth is a legacy HTML page. Consequently, automated web scraping is currently the only viable method for developers to fulfill their legal "Duty of Care" without manual, inefficient daily checks of government websites.
 
 ## ⚠️ Important: Scope & Limitations
 **This tool is NOT a real-time verification API.** 
@@ -19,11 +19,11 @@ However, as of early 2026, the German authorities (**BfDI** and **BNetzA**) have
 *   **No Centralized API:** Bridges the gap created by the lack of government-provided data structures.
 
 ## 🚀 How it Works
-A **GitHub Action Workflow** runs automatically every 24 hours to perform the following monitoring tasks:
+A **GitHub Action Workflow** runs automatically every 24 hours (08:00 UTC) to perform the following monitoring tasks:
 
-1.  **Automated Scraping:** The Node.js script (`index.js`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html).
-2.  **Entity Extraction:** It identifies entries following the official "Name des Dienstes: [Name]" format.
-3.  **Integrity Check:** The script ensures that previously known providers (e.g., *Consenter*) are still found. If the list is empty, it triggers a "Structure Change" alert (indicating a possible layout change on the government website).
+1.  **Automated Scraping:** The PHP script (`monitor.php`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html).
+2.  **Entity Extraction:** It identifies entries following the official "Name des Dienstes" format and extracts structured data (Name, Provider, Recognition Date).
+3.  **Integrity Check:** The script ensures that previously known providers are still found. If the list is empty, it triggers a "Structure Change" alert (indicating a possible layout change on the government website).
 4.  **Compliance Alerting:** 
     *   If **new providers** are discovered or the **page structure breaks**, the GitHub Action fails (`exit 1`).
     *   GitHub automatically sends an **Email Notification** to the repository owner.
@@ -36,14 +36,20 @@ A **GitHub Action Workflow** runs automatically every 24 hours to perform the fo
 3.  **Initial Baseline:** Manually trigger the workflow under the `Actions` tab to create your initial provider list.
 
 ## 📂 Repository Structure
-*   `index.js`: The scraper core (Node.js using Axios & Cheerio).
-*   `pims_registry.json`: The "Source of Truth" containing all currently detected providers.
-*   `.github/workflows/monitor.yml`: Automated schedule configuration.
+*   `monitor.php`: The scraper core (PHP using DOMDocument & XPath).
+*   `pims_registry.json`: The "Source of Truth" containing all currently detected providers in a structured format.
+*   `.github/workflows/daily_scrape.yml`: Automated schedule configuration.
 
-## ⚖️ Legal Disclaimer
+## ⚖️ Legal Disclaimer & License
 This tool is a technical aid for fulfilling the **Duty of Care (Sorgfaltspflicht)** under **Section 18 Para. 2 EinwV**. Automated requests are performed at a low frequency (once daily) to respect the server load of the German Federal Authorities. According to **Section 5 of the German Copyright Act (UrhG)**, official works such as registries and announcements are not subject to copyright protection.
+
+**License:** This project is licensed under the [Mozilla Public License 2.0 (MPL 2.0)](https://www.mozilla.org/en-US/MPL/2.0/).
+
+**Author:** d0ubIeU
+
+**Repository:** [https://github.com/d0ubIeU/pims-monitor](https://github.com/d0ubIeU/pims-monitor)
 
 ## 🚨 Action Plan on Alert
 When you receive a "Workflow failed" email:
 1.  **New Provider Identified?** Visit the provider's website, download their technical documentation, and update your website's consent logic with their specific public keys/signatures.
-2.  **Structural Warning?** Check if the BfDI changed the URL or HTML layout and update the regex in `index.js` to restore monitoring functionality.
+2.  **Structural Warning?** Check if the BfDI changed the URL or HTML layout and update the logic in `monitor.php` to restore monitoring functionality.
