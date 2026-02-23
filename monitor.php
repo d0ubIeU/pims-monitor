@@ -43,41 +43,36 @@ $xpath = new DOMXPath($dom);
 
 $currentProviders = [];
 
-// Targeted search for paragraphs containing the service name pattern
-$nodes = $xpath->query("//p[contains(text(), 'Name des Dienstes:')]");
+/**
+ * SPECIFIC SEARCH FOR <p> TAGS:
+ * We search for paragraphs that contain the "Name des Dienstes" label.
+ */
+$nodes = $xpath->query("//p[strong[contains(text(), 'Name des Dienstes:')]]");
 
 foreach ($nodes as $node) {
-    $text = trim($node->textContent);
+    // Get text content and replace all whitespace/newlines/nbsp with a single space
+    $text = $node->textContent;
+    $text = preg_replace('/[\t\n\r\0\x0B\xA0]+/u', ' ', $text);
+    $text = preg_replace('/\s+/', ' ', $text);
+    $text = trim($text);
     
     /**
      * Regex Pattern:
-     * Captures Name, Provider (Anbieter), and Recognition Date.
+     * Adjusted to be extremely flexible with spaces and labels.
      */
-    $pattern = '/Name des Dienstes:\s*(.*?)\s*Anbieter:\s*(.*?)\s*Datum der Anerkennung:\s*(.*)/us';
+    $pattern = '/Name des Dienstes:\s*(.*?)\s*Anbieter:\s*(.*?)\s*Datum der Anerkennung:\s*(.*)/i';
     
     if (preg_match($pattern, $text, $matches)) {
         $currentProviders[] = [
-            'name'     => trim($matches[1]),
-            'provider' => trim($matches[2]),
-            'date'     => trim($matches[3]),
-            'last_check' => date('c') // ISO 8601 timestamp
+            'name'       => trim($matches[1]),
+            'provider'   => trim($matches[2]),
+            'date'       => trim($matches[3]),
+            'last_check' => date('c')
         ];
-    } else {
-        // Fallback for unexpected formatting
-        $name = trim(str_replace('Name des Dienstes:', '', $text));
-        if (!empty($name)) {
-            $currentProviders[] = [
-                'name'       => $name,
-                'provider'   => 'Unknown',
-                'date'       => 'Unknown',
-                'last_check' => date('c'),
-                'raw_text'   => $text 
-            ];
-        }
     }
 }
 
-// Ensure unique entries based on service name
+// Ensure unique entries
 $uniqueProviders = [];
 foreach ($currentProviders as $p) {
     $uniqueProviders[$p['name']] = $p;
@@ -86,18 +81,16 @@ $currentProviders = array_values($uniqueProviders);
 
 // --- PHASE 3: Stability Check ---
 if (empty($currentProviders)) {
-    echo "❌ Error: No providers found at " . date('Y-m-d H:i:s') . ". Check HTML structure.\n";
+    echo "DEBUG: Extraction failed. Sample of first paragraph found:\n";
+    $sample = $xpath->query("//p[strong]")->item(0);
+    if ($sample) echo "Sample: " . trim($sample->textContent) . "\n";
+    
+    echo "❌ Error: No providers found at " . date('Y-m-d H:i:s') . ".\n";
     exit(1);
 }
 
 // --- PHASE 4: Comparison & Persistence ---
-$oldProviders = [];
-if (file_exists($dataFile)) {
-    $content = file_get_contents($dataFile);
-    $oldProviders = $content ? json_decode($content, true) : [];
-}
-
-// Extract names for differential analysis
+$oldProviders = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
 $oldNames = array_column($oldProviders, 'name');
 $currentNames = array_column($currentProviders, 'name');
 
@@ -105,11 +98,10 @@ $newEntries = array_diff($currentNames, $oldNames);
 $missingEntries = array_diff($oldNames, $currentNames);
 
 if (!empty($newEntries) || !empty($missingEntries)) {
-    // Write updated registry to JSON file
     file_put_contents($dataFile, json_encode($currentProviders, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     
     if (!empty($newEntries)) {
-        echo "🚀 NEW_PIMS_DETECTED [" . date('Y-m-d') . "]: " . implode(', ', $newEntries) . "\n";
+        echo "🚀 NEW_PIMS_DETECTED: " . implode(', ', $newEntries) . "\n";
     }
     if (!empty($missingEntries)) {
         echo "⚠️ WARNING: Services removed: " . implode(', ', $missingEntries) . "\n";
