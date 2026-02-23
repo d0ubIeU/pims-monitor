@@ -21,7 +21,7 @@ However, as of early 2026, the German authorities (**BfDI** and **BNetzA**) have
 ## 🚀 How it Works
 A **GitHub Action Workflow** runs automatically every 24 hours to perform the following monitoring tasks:
 
-1.  **Automated Scraping:** The Node.js script (`index.js`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de).
+1.  **Automated Scraping:** The Node.js script (`index.js`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html).
 2.  **Entity Extraction:** It identifies entries following the official "Name des Dienstes: [Name]" format.
 3.  **Integrity Check:** The script ensures that previously known providers (e.g., *Consenter*) are still found. If the list is empty, it triggers a "Structure Change" alert (indicating a possible layout change on the government website).
 4.  **Compliance Alerting:** 
