@@ -3,117 +3,117 @@
 /**
  * BfDI PIMS Registry Monitor
  * 
- * This script scrapes the official BfDI website to track registered 
- * Personal Information Management Systems (PIMS).
+ * This script scrapes and structures the official registry of the Federal 
+ * Commissioner for Data Protection and Freedom of Information (BfDI) in Germany.
+ * 
+ * Context: According to Section 18 of the EinwV (in conjunction with Section 25 TDDDG), 
+ * providers of digital services in Germany may use recognized Personal Information 
+ * Management Systems (PIMS) for consent management.
+ * 
+ * Repository:     https://github.comhttps://github.com/d0ubIeU/pims-monitor
+ * Author:         d0ubIeU
+ * Date:           2024-05-22 (Initial Setup)
+ * License:        Mozilla Public License 2.0 (MPL 2.0)
+ * License-URL:    https://www.mozilla.org/MPL/2.0/
  */
 
 // Configuration
-$bfdiUrl = 'https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html';
+$bfdiUrl = 'https://www.bfdi.bund.de';
 $dataFile = './pims_registry.json';
 
-/**
- * PHASE 1: Data Retrieval
- * We use a custom User-Agent to avoid being blocked as a generic bot.
- */
+// --- PHASE 1: Data Retrieval ---
 $options = [
     'http' => [
-        'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
+        'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\r\n"
     ]
 ];
 $context = stream_context_create($options);
 $html = @file_get_contents($bfdiUrl, false, $context);
 
 if (!$html) {
-    echo "❌ Error: Could not fetch the website. Check URL or connection.\n";
+    echo "❌ Error: Could not fetch the website (" . date('Y-m-d H:i:s') . ").\n";
     exit(1);
 }
 
-/**
- * PHASE 2: Parsing the HTML (Improved Robustness)
- */
+// --- PHASE 2: Parsing & Structuring ---
 $dom = new DOMDocument();
-// Using LIBXML_NOERROR to ignore HTML5 warnings
+// Using LIBXML_NOERROR to ignore HTML5 specific warnings
 @$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_NOERROR | LIBXML_NOWARNING);
 $xpath = new DOMXPath($dom);
 
 $currentProviders = [];
 
-/**
- * IMPROVED SEARCH:
- * We look for any text node containing "Name des Dienstes:" 
- * within the content area to be less dependent on exact <p> structures.
- */
-$query = "//*[contains(text(), 'Name des Dienstes:')]";
-$nodes = $xpath->query($query);
+// Targeted search for paragraphs containing the service name pattern
+$nodes = $xpath->query("//p[contains(text(), 'Name des Dienstes:')]");
 
 foreach ($nodes as $node) {
-    $text = $node->textContent;
+    $text = trim($node->textContent);
     
-    // Improved Regex: 
-    // 1. Look for "Name des Dienstes:"
-    // 2. Capture everything after the colon until the end of the string
-    if (preg_match('/Name des Dienstes:\s*(.+)/u', $text, $matches)) {
-        $name = trim($matches[1]);
-        
-        // Filter out placeholders or very short strings
-        if (!empty($name) && strlen($name) > 2) {
-            $currentProviders[] = $name;
+    /**
+     * Regex Pattern:
+     * Captures Name, Provider (Anbieter), and Recognition Date.
+     */
+    $pattern = '/Name des Dienstes:\s*(.*?)\s*Anbieter:\s*(.*?)\s*Datum der Anerkennung:\s*(.*)/us';
+    
+    if (preg_match($pattern, $text, $matches)) {
+        $currentProviders[] = [
+            'name'     => trim($matches[1]),
+            'provider' => trim($matches[2]),
+            'date'     => trim($matches[3]),
+            'last_check' => date('c') // ISO 8601 timestamp
+        ];
+    } else {
+        // Fallback for unexpected formatting
+        $name = trim(str_replace('Name des Dienstes:', '', $text));
+        if (!empty($name)) {
+            $currentProviders[] = [
+                'name'       => $name,
+                'provider'   => 'Unknown',
+                'date'       => 'Unknown',
+                'last_check' => date('c'),
+                'raw_text'   => $text 
+            ];
         }
     }
 }
 
-// Fallback: If still empty, let's try a broader search in the whole document
-if (empty($currentProviders)) {
-    // This catches cases where the text might be split across multiple nodes
-    foreach ($dom->getElementsByTagName('p') as $p) {
-        $text = $p->textContent;
-        if (strpos($text, 'Name des Dienstes:') !== false) {
-            $parts = explode('Name des Dienstes:', $text);
-            if (isset($parts[1])) {
-                $name = trim($parts[1]);
-                if (!empty($name)) $currentProviders[] = $name;
-            }
-        }
-    }
+// Ensure unique entries based on service name
+$uniqueProviders = [];
+foreach ($currentProviders as $p) {
+    $uniqueProviders[$p['name']] = $p;
 }
+$currentProviders = array_values($uniqueProviders);
 
-$currentProviders = array_values(array_unique($currentProviders));
-
-/**
- * PHASE 3: Stability Check
- */
+// --- PHASE 3: Stability Check ---
 if (empty($currentProviders)) {
-    // Log a snippet of the HTML for debugging in GitHub Actions logs
-    echo "DEBUG: HTML Structure might have changed. Snippet:\n";
-    echo substr(strip_tags($html), 0, 500) . "...\n";
-    echo "❌ Error: No providers found.\n";
+    echo "❌ Error: No providers found at " . date('Y-m-d H:i:s') . ". Check HTML structure.\n";
     exit(1);
 }
 
-/**
- * PHASE 4: Comparison & File Handling
- * We compare the new data with the existing JSON file to detect changes.
- */
+// --- PHASE 4: Comparison & Persistence ---
 $oldProviders = [];
 if (file_exists($dataFile)) {
     $content = file_get_contents($dataFile);
     $oldProviders = $content ? json_decode($content, true) : [];
 }
 
-// Calculate differences
-$newEntries = array_diff($currentProviders, $oldProviders);
-$missingEntries = array_diff($oldProviders, $currentProviders);
+// Extract names for differential analysis
+$oldNames = array_column($oldProviders, 'name');
+$currentNames = array_column($currentProviders, 'name');
+
+$newEntries = array_diff($currentNames, $oldNames);
+$missingEntries = array_diff($oldNames, $currentNames);
 
 if (!empty($newEntries) || !empty($missingEntries)) {
-    // Update the local JSON file
+    // Write updated registry to JSON file
     file_put_contents($dataFile, json_encode($currentProviders, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     
     if (!empty($newEntries)) {
-        echo "🚀 NEW_PIMS_DETECTED: " . implode(', ', $newEntries) . "\n";
+        echo "🚀 NEW_PIMS_DETECTED [" . date('Y-m-d') . "]: " . implode(', ', $newEntries) . "\n";
     }
     if (!empty($missingEntries)) {
-        echo "⚠️ WARNING: Previously registered services disappeared: " . implode(', ', $missingEntries) . "\n";
+        echo "⚠️ WARNING: Services removed: " . implode(', ', $missingEntries) . "\n";
     }
 } else {
-    echo "✅ Status Stable (" . count($currentProviders) . " services): " . implode(', ', $currentProviders) . "\n";
+    echo "✅ Status Stable (" . count($currentProviders) . " services) as of " . date('Y-m-d H:i:s') . "\n";
 }
