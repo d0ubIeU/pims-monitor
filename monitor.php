@@ -63,11 +63,23 @@ foreach ($nodes as $node) {
     $pattern = '/Name des Dienstes:\s*(.*?)\s*Anbieter:\s*(.*?)\s*Datum der Anerkennung:\s*(.*)/i';
     
     if (preg_match($pattern, $text, $matches)) {
+        $name = trim($matches[1]);
+        
+        // Check if we already have this provider in our OLD data
+        $existingEntry = null;
+        foreach ($oldProviders as $old) {
+            if ($old['name'] === $name) {
+                $existingEntry = $old;
+                break;
+            }
+        }
+    
         $currentProviders[] = [
-            'name'       => trim($matches[1]),
-            'provider'   => trim($matches[2]),
-            'date'       => trim($matches[3]),
-            'last_check' => date('c')
+            'name'           => $name,
+            'provider'       => trim($matches[2]),
+            'date'           => trim($matches[3]),
+            // Keep the old detection date or set a new one if it's a new entry
+            'first_detected' => $existingEntry ? $existingEntry['first_detected'] : date('c')
         ];
     }
 }
