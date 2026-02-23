@@ -55,7 +55,7 @@ jobs:
           
           # Defines the identity of the bot performing the commit
           commit_user_name: "BfDI Monitor Bot"
-          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
           
           # Ensures the commit is correctly attributed to the Action
-          commit_author: "BfDI Monitor Bot <41898282+github-actions[bot]@users.noreply.github.com>"
+          commit_author: "BfDI Monitor Bot <bfdi-monitor-bot@users.noreply.github.com>"
