@@ -5,6 +5,16 @@
  * 
  * This script scrapes and structures the official registry of the Federal 
  * Commissioner for Data Protection and Freedom of Information (BfDI) in Germany.
+ * 
+ * Context: According to Section 18 of the EinwV (in conjunction with Section 25 TDDDG), 
+ * providers of digital services in Germany may use recognized Personal Information 
+ * Management Systems (PIMS) for consent management.
+ * 
+ * Repository:     https://github.comhttps://github.com/d0ubIeU/pims-monitor
+ * Author:         d0ubIeU
+ * Date:           2026-02-23 (Initial Setup)
+ * License:        Mozilla Public License 2.0 (MPL 2.0)
+ * License-URL:    https://www.mozilla.org/MPL/2.0/
  */
 
 // Configuration
@@ -25,100 +35,109 @@ if (!$html) {
     exit(1);
 }
 
-// Load existing data for comparison (Moved up to Phase 2 for 'first_detected' logic)
-$oldProviders = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
-if (!is_array($oldProviders)) $oldProviders = [];
+// Load existing data for comparison and history
+$oldRegistry = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
+if (!is_array($oldRegistry)) $oldRegistry = [];
+
+// Index old data by name for faster lookup
+$historyMap = [];
+foreach ($oldRegistry as $item) {
+    $historyMap[$item['name']] = $item;
+}
 
 // --- PHASE 2: Parsing & Structuring ---
 $dom = new DOMDocument();
 @$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_NOERROR | LIBXML_NOWARNING);
 $xpath = new DOMXPath($dom);
 
-$currentProviders = [];
+$currentEntries = [];
 $nodes = $xpath->query("//p[strong[contains(text(), 'Name des Dienstes:')]]");
 
 foreach ($nodes as $node) {
-    $text = $node->textContent;
-    $text = preg_replace('/[\t\n\r\0\x0B\xA0]+/u', ' ', $text);
-    $text = preg_replace('/\s+/', ' ', $text);
-    $text = trim($text);
-    
+    $text = preg_replace('/\s+/', ' ', trim($node->textContent));
     $pattern = '/Name des Dienstes:\s*(.*?)\s*Anbieter:\s*(.*?)\s*Datum der Anerkennung:\s*(.*)/i';
     
     if (preg_match($pattern, $text, $matches)) {
         $name = trim($matches[1]);
+        $provider = trim($matches[2]);
+        $recognitionDate = trim($matches[3]);
         
-        $existingEntry = null;
-        foreach ($oldProviders as $old) {
-            if (isset($old['name']) && $old['name'] === $name) {
-                $existingEntry = $old;
-                break;
-            }
-        }
-    
-        $currentProviders[] = [
+        // Logic: Keep old first_detected or set new one
+        $firstDetected = isset($historyMap[$name]) ? $historyMap[$name]['first_detected'] : date('c');
+
+        $currentEntries[$name] = [
             'name'           => $name,
-            'provider'       => trim($matches[2]),
-            'date'           => trim($matches[3]),
-            'first_detected' => $existingEntry ? $existingEntry['first_detected'] : date('c')
+            'provider'       => $provider,
+            'date'           => $recognitionDate,
+            'status'         => 'Verified',
+            'first_detected' => $firstDetected,
+            'last_seen'      => date('c')
         ];
     }
 }
 
-// Ensure unique entries
-$uniqueProviders = [];
-foreach ($currentProviders as $p) {
-    $uniqueProviders[$p['name']] = $p;
-}
-$currentProviders = array_values($uniqueProviders);
-
 // --- PHASE 3: Stability Check ---
-if (empty($currentProviders)) {
-    echo "❌ Error: No providers found at " . date('Y-m-d H:i:s') . ".\n";
+if (empty($currentEntries)) {
+    echo "❌ Error: No providers found. Possible layout change on website.\n";
     exit(1);
 }
 
-// --- PHASE 4: Comparison & Notification Logic ---
-$oldNames = array_column($oldProviders, 'name');
-$currentNames = array_column($currentProviders, 'name');
+// --- PHASE 4: Merging & History ---
+$finalRegistry = $currentEntries;
+$hasChanges = false;
+$changeDetails = [];
 
-$newEntries = array_diff($currentNames, $oldNames);
-$missingEntries = array_diff($oldNames, $currentNames);
-
-// Check for modifications (same name, but provider or date changed)
-$modifiedEntries = [];
-foreach ($currentProviders as $current) {
-    foreach ($oldProviders as $old) {
-        if ($current['name'] === $old['name']) {
-            if ($current['provider'] !== $old['provider'] || $current['date'] !== $old['date']) {
-                $modifiedEntries[] = $current['name'];
+// Check for removed or modified entries
+foreach ($historyMap as $name => $oldItem) {
+    if (!isset($currentEntries[$name])) {
+        // Entry is no longer on the website -> Mark as 'removed'
+        if ($oldItem['status'] !== 'removed') {
+            $oldItem['status'] = 'removed';
+            $oldItem['removed_at'] = date('c');
+            $hasChanges = true;
+            $changeDetails[] = "🗑️ Deactivated: $name";
+        }
+        $finalRegistry[$name] = $oldItem;
+    } else {
+        // Entry still exists -> check if content changed
+        $current = $currentEntries[$name];
+        if ($current['provider'] !== $oldItem['provider'] || $current['date'] !== $oldItem['date'] || $oldItem['status'] === 'removed') {
+            $hasChanges = true;
+            if ($oldItem['status'] === 'removed') {
+                $changeDetails[] = "♻️ Reactivated: $name";
+            } else {
+                $changeDetails[] = "✏️ Modified: $name";
             }
         }
     }
 }
 
-if (!empty($newEntries) || !empty($missingEntries) || !empty($modifiedEntries)) {
-    // Save updated data
-    file_put_contents($dataFile, json_encode($currentProviders, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+// Check for brand new entries
+foreach ($currentEntries as $name => $item) {
+    if (!isset($historyMap[$name])) {
+        $hasChanges = true;
+        $changeDetails[] = "🆕 New: $name";
+    }
+}
+
+// --- PHASE 5: Persistence & Output ---
+if ($hasChanges) {
+    // Sort by name for a clean JSON structure
+    ksort($finalRegistry);
+    $outputData = array_values($finalRegistry);
     
-    // Prepare detailed message for GitHub Issue
-    $details = [];
-    if (!empty($newEntries)) $details[] = "🆕 Added: " . implode(', ', $newEntries);
-    if (!empty($modifiedEntries)) $details[] = "✏️ Modified: " . implode(', ', $modifiedEntries);
-    if (!empty($missingEntries)) $details[] = "🗑️ Removed: " . implode(', ', $missingEntries);
+    file_put_contents($dataFile, json_encode($outputData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     
-    $fullMessage = implode(" | ", $details);
+    $fullMessage = implode(" | ", $changeDetails);
     echo "ALARM: " . $fullMessage . "\n";
 
-    // Write to GitHub Output
     $outputFile = getenv('GITHUB_OUTPUT');
     if ($outputFile) {
         file_put_contents($outputFile, "details=$fullMessage" . PHP_EOL, FILE_APPEND);
     }
-    
-    // Exit with 1 to trigger the GitHub Action Alert/Issue
     exit(1);
 } else {
-    echo "✅ Status Stable (" . count($currentProviders) . " services) as of " . date('Y-m-d H:i:s') . "\n";
+    echo "✅ Status Stable (" . count($currentEntries) . " verified services) as of " . date('Y-m-d H:i:s') . "\n";
     exit(0);
 }
+
