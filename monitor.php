@@ -22,24 +22,16 @@ $bfdiUrl = 'https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einw
 $dataFile = './pims_registry.json';
 
 // --- PHASE 1: Data Retrieval ---
-$options = [
-    'http' => [
-        'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\r\n"
-    ]
-];
+$options = ['http' => ['header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\r\n"]];
 $context = stream_context_create($options);
 $html = @file_get_contents($bfdiUrl, false, $context);
 
-if (!$html) {
-    fwrite(STDERR, "❌ Error: Could not fetch the website (" . date('Y-m-d H:i:s') . ").\n");
-    exit(1);
-}
+if (!$html) exit(1);
 
-// Load existing data for comparison and history tracking
+// Load existing data
 $oldRegistry = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
 if (!is_array($oldRegistry)) $oldRegistry = [];
 
-// Index old data by name for efficient lookup
 $historyMap = [];
 foreach ($oldRegistry as $item) {
     $historyMap[$item['name']] = $item;
@@ -60,59 +52,37 @@ foreach ($nodes as $node) {
     if (preg_match($pattern, $text, $matches)) {
         $name = trim($matches[1]);
         $provider = trim($matches[2]);
-        $recognitionDate = trim($matches[3]);
+        $date = trim($matches[3]);
         
-        // Retain initial detection date or set current if new
-        $firstDetected = isset($historyMap[$name]) ? $historyMap[$name]['first_detected'] : date('c');
-
         $currentEntries[$name] = [
             'name'           => $name,
             'provider'       => $provider,
-            'date'           => $recognitionDate,
+            'date'           => $date,
             'status'         => 'Verified',
-            'first_detected' => $firstDetected,
-            'last_seen'      => date('c') // Always updated to current run time
+            'first_detected' => $historyMap[$name]['first_detected'] ?? date('c'),
+            'last_seen'      => date('c') // Always update timestamp
         ];
     }
 }
 
-// --- PHASE 3: Stability Check ---
-if (empty($currentEntries)) {
-    fwrite(STDERR, "❌ Error: No providers found. Possible layout change on website.\n");
-    exit(1);
-}
+if (empty($currentEntries)) exit(1);
 
-// --- PHASE 4: Merging & Change Detection ---
-$finalRegistry = $currentEntries;
+// --- PHASE 3: Comparison Logic (Content only) ---
 $hasAlertableChanges = false;
 $changeDetails = [];
 
-// Process removed or modified entries from history
+// Check for removed or modified providers
 foreach ($historyMap as $name => $oldItem) {
-    if (!isset($currentEntries[$name])) {
-        // Entry disappeared from website -> Mark as 'removed'
-        if ($oldItem['status'] !== 'removed') {
-            $oldItem['status'] = 'removed';
-            $oldItem['removed_at'] = date('c');
-            $hasAlertableChanges = true;
-            $changeDetails[] = "🗑️ Deactivated: $name";
-        }
-        $finalRegistry[$name] = $oldItem;
-    } else {
-        // Check for content updates (Provider name or Recognition date)
-        $current = $currentEntries[$name];
-        if ($current['provider'] !== $oldItem['provider'] || $current['date'] !== $oldItem['date'] || $oldItem['status'] === 'removed') {
-            $hasAlertableChanges = true;
-            if ($oldItem['status'] === 'removed') {
-                $changeDetails[] = "♻️ Reactivated: $name";
-            } else {
-                $changeDetails[] = "✏️ Modified: $name";
-            }
-        }
+    if ($oldItem['status'] === 'Verified' && !isset($currentEntries[$name])) {
+        $hasAlertableChanges = true;
+        $changeDetails[] = "🗑️ Removed: $name";
+    } elseif (isset($currentEntries[$name]) && $currentEntries[$name]['provider'] !== $oldItem['provider']) {
+        $hasAlertableChanges = true;
+        $changeDetails[] = "✏️ Modified: $name";
     }
 }
 
-// Detect brand new entries
+// Check for new providers
 foreach ($currentEntries as $name => $item) {
     if (!isset($historyMap[$name])) {
         $hasAlertableChanges = true;
@@ -120,22 +90,27 @@ foreach ($currentEntries as $name => $item) {
     }
 }
 
-// --- PHASE 5: Persistence & GitHub Communication ---
-// Sort by name for a consistent JSON structure
-ksort($finalRegistry);
-$outputData = array_values($finalRegistry);
-file_put_contents($dataFile, json_encode($outputData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+// --- PHASE 4: Persistence ---
+$finalRegistry = $currentEntries;
+foreach ($historyMap as $name => $oldItem) {
+    if (!isset($currentEntries[$name])) {
+        $oldItem['status'] = 'removed';
+        $oldItem['removed_at'] = $oldItem['removed_at'] ?? date('c');
+        $finalRegistry[$name] = $oldItem;
+    }
+}
 
+ksort($finalRegistry);
+file_put_contents($dataFile, json_encode(array_values($finalRegistry), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+// --- PHASE 5: Exit Signal ---
 if ($hasAlertableChanges) {
     $fullMessage = implode(" | ", $changeDetails);
-    
-    // Write summary to GitHub Output for Step 6
     $outputFile = getenv('GITHUB_OUTPUT');
     if ($outputFile) {
         file_put_contents($outputFile, "details=$fullMessage" . PHP_EOL, FILE_APPEND);
     }
-    exit(1); // Trigger Issue Alert
-} else {
-    echo "✅ Status Stable (" . count($currentEntries) . " verified services) as of " . date('Y-m-d H:i:s') . "\n";
-    exit(0); // Regular exit, no Issue
+    exit(1); // Trigger Alert in Workflow
 }
+
+exit(0);
