@@ -38,7 +38,8 @@ jobs:
           file_pattern: 'pims_registry.json'
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
-
+          commit_author: "BfDI Monitor Bot <bfdi-monitor-bot@users.noreply.github.com>"
+          
       - name: Create Detailed Alert Issue
         if: steps.scraper.outcome == 'failure'
         run: |
