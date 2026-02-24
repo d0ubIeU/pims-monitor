@@ -23,7 +23,7 @@ However, as of early 2026, the German authorities (**BfDI** and **BNetzA**) have
 ## 🚀 How it Works
 A **GitHub Action Workflow** runs automatically every 24 hours (**01:00 UTC**) to perform the following monitoring tasks:
 
-1.  **Automated Scraping:** The PHP script (`monitor.php`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de).
+1.  **Automated Scraping:** The PHP script (`monitor.php`) fetches the official [BfDI Registry Page](https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html).
 2.  **Entity Extraction:** It identifies entries following the official "Name des Dienstes" format and extracts structured data (Name, Provider, Recognition Date).
 3.  **Integrity Check:** The script ensures that previously known providers are still found. If the list is empty, it triggers a "Structure Change" alert (indicating a possible layout change on the government website) and prevents data loss.
 4.  **Compliance Alerting:** 
@@ -71,7 +71,7 @@ This tool is a technical aid for fulfilling the **Duty of Care (Sorgfaltspflicht
 **License:** This project is licensed under the [Mozilla Public License 2.0 (MPL 2.0)](https://www.mozilla.org).
 
 **Author:** d0ubIeU  
-**Repository:** [https://github.com](https://github.com)
+**Repository:** [https://github.com/d0ubIeU/pims-monitor](https://github.com/d0ubIeU/pims-monitor)
 
 ## 🚨 Action Plan on Alert
 When you receive a change notification or "Workflow failed" email:
