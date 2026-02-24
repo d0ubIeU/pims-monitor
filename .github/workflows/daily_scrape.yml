@@ -24,27 +24,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Sets up the PHP environment with necessary extensions for HTML parsing
+      # Step 2: Sets up the PHP environment
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          # 'dom' and 'libxml' are required for PHP's DOMDocument class
-          # 'mbstring' ensures correct character encoding (e.g., German Umlauts)
           extensions: dom, mbstring, libxml
 
-      # Step 3: Generates a dynamic date string to be used in the commit message
+      # Step 3: Generates a dynamic date string
       - name: Get current date
         id: date
         run: echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       # Step 4: Executes the PHP scraping script
+      # IMPORTANT: id: scraper is needed to access outputs in Step 6
       - name: Run PHP Scraper
         id: scraper
         run: php monitor.php
         continue-on-error: true
 
-      # Step 5: Commit changes
+      # Step 5: Commit changes (only if file exists/changed)
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
@@ -53,27 +52,32 @@ jobs:
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
 
-      # Step 6: Create Issue and Fail (English version with details)
+      # Step 6: Create Issue and Fail
       - name: Check for Alert and Notify
         if: steps.scraper.outcome == 'failure'
         run: |
-          # Use the output from PHP or a default message if empty
+          # The variable must be accessed via steps.scraper.outputs.details
+          # We wrap it in quotes to handle special characters safely
           DETAILED_INFO="${{ steps.scraper.outputs.details }}"
+          
           if [ -z "$DETAILED_INFO" ]; then
-            DETAILED_INFO="Changes detected or script error occurred. Please check the logs."
+            DETAILED_INFO="Changes detected or script error occurred (e.g., website down). Please check the logs."
           fi
 
           echo "Changes detected. Creating GitHub Issue for notification."
+          
           gh issue create \
             --title "⚠️ Alert: BfDI Website Change Detected (${{ env.CURRENT_DATE }})" \
             --body "### Scraper Update Summary
             **Date:** ${{ env.CURRENT_DATE }}
-            **Status:** Modification Detected
+            **Status:** Modification or Error Detected
             
             **Details:**
             $DETAILED_INFO
             
             Please review the changes in [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)."
+          
+          # Final exit 1 to mark workflow as failed and trigger GitHub's default notification
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
