@@ -1,85 +1,55 @@
-# Name of the workflow as it appears in the GitHub Actions tab
 name: Daily BfDI PHP Scraper
 
 on:
-  # Automated trigger: Runs every day at 01:00 UTC
   schedule:
     - cron: '0 1 * * *'
-  
-  # Manual trigger: Allows you to run the script via the "Run workflow" button in GitHub
   workflow_dispatch:
 
 jobs:
   scrape_and_commit:
-    # Uses the latest Ubuntu environment provided by GitHub
     runs-on: ubuntu-latest
-    
-    # Critical: Grants the workflow permission to write changes and create issues
     permissions:
       contents: write
       issues: write
 
     steps:
-      # Step 1: Downloads the current repository content to the runner
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Sets up the PHP environment
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: dom, mbstring, libxml
 
-      # Step 3: Generates a dynamic date string
       - name: Get current date
         id: date
         run: echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
-      # Step 4: Executes the PHP scraping script
-      # IMPORTANT: id: scraper is needed to access outputs in Step 6
       - name: Run PHP Scraper
         id: scraper
         run: php monitor.php
         continue-on-error: true
 
-      # Step 5: Commit changes (only if file exists/changed)
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Auto-Update: PIMS Registry updated on ${{ env.CURRENT_DATE }}"
+          commit_message: "BfDI Sync: Monitoring update for ${{ env.CURRENT_DATE }}"
           file_pattern: 'pims_registry.json'
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
 
-      # Step 6: Create Issue and Fail
-      - name: Check for Alert and Notify
+      - name: Create Alert Issue
         if: steps.scraper.outcome == 'failure'
         run: |
-          # The variable must be accessed via steps.scraper.outputs.details
-          # We wrap it in quotes to handle special characters safely
           DETAILED_INFO="${{ steps.scraper.outputs.details }}"
-          
           if [ -z "$DETAILED_INFO" ]; then
-            DETAILED_INFO="Changes detected or script error occurred (e.g., website down). Please check the logs."
+            DETAILED_INFO="Changes detected or script error occurred."
           fi
-
-          echo "Changes detected. Creating GitHub Issue for notification."
           
           gh issue create \
             --title "⚠️ Alert: BfDI Website Change Detected (${{ env.CURRENT_DATE }})" \
-            --body "### 🔍 Scraper Update Summary
-            **Date:** ${{ env.CURRENT_DATE }}
-            **Status:** Modification or Error Detected
-            
-            #### Change Details:
-            \`\`\`text
-            $DETAILED_INFO
-            \`\`\`
-            
-            View full registry: [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)"
-          
-          # Final exit 1 to mark workflow as failed and trigger GitHub's default notification
+            --body "Changes: $DETAILED_INFO"
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
