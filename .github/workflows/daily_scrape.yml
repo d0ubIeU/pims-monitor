@@ -68,14 +68,16 @@ jobs:
           
           gh issue create \
             --title "⚠️ Alert: BfDI Website Change Detected (${{ env.CURRENT_DATE }})" \
-            --body "### Scraper Update Summary
+            --body "### 🔍 Scraper Update Summary
             **Date:** ${{ env.CURRENT_DATE }}
             **Status:** Modification or Error Detected
             
-            **Details:**
+            #### Change Details:
+            \`\`\`text
             $DETAILED_INFO
+            \`\`\`
             
-            Please review the changes in [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)."
+            View full registry: [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)"
           
           # Final exit 1 to mark workflow as failed and trigger GitHub's default notification
           exit 1
