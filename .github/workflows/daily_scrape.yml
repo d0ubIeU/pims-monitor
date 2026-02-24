@@ -14,9 +14,10 @@ jobs:
     # Uses the latest Ubuntu environment provided by GitHub
     runs-on: ubuntu-latest
     
-    # Critical: Grants the workflow permission to write changes back to the repository
+    # Critical: Grants the workflow permission to write changes and create issues
     permissions:
       contents: write
+      issues: write
 
     steps:
       # Step 1: Downloads the current repository content to the runner
@@ -41,7 +42,7 @@ jobs:
       - name: Run PHP Scraper
         id: scraper
         run: php monitor.php
-        continue-on-error: true # Allow the Commit, when Skript "failed" (for Mail)
+        continue-on-error: true
 
       # Step 5: Commit changes
       - name: Commit and Push changes
@@ -52,10 +53,27 @@ jobs:
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
 
-      # Step 6: Final Error-Check for E-Mail
-      - name: Check for Alert
+      # Step 6: Create Issue and Fail (English version with details)
+      - name: Check for Alert and Notify
         if: steps.scraper.outcome == 'failure'
         run: |
-          echo "Changes detected or error occurred. Triggering notification."
-          exit 1
+          # Use the output from PHP or a default message if empty
+          DETAILED_INFO="${{ steps.scraper.outputs.details }}"
+          if [ -z "$DETAILED_INFO" ]; then
+            DETAILED_INFO="Changes detected or script error occurred. Please check the logs."
+          fi
 
+          echo "Changes detected. Creating GitHub Issue for notification."
+          gh issue create \
+            --title "⚠️ Alert: BfDI Website Change Detected (${{ env.CURRENT_DATE }})" \
+            --body "### Scraper Update Summary
+            **Date:** ${{ env.CURRENT_DATE }}
+            **Status:** Modification Detected
+            
+            **Details:**
+            $DETAILED_INFO
+            
+            Please review the changes in [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)."
+          exit 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
