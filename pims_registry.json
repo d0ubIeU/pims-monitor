@@ -1,10 +1,19 @@
 [
     {
+        "name": "Consenter",
+        "provider": "Law & Innovation Technology GmbH",
+        "date": "17. Oktober 2025",
+        "status": "Verified",
+        "first_detected": "2026-02-24T13:17:50+00:00",
+        "last_seen": "2026-02-24T13:17:50+00:00"
+    },
+    {
         "name": "Test",
         "provider": "Test Company",
         "date": "17. Oktober 2025",
-        "status": "Verified",
+        "status": "removed",
         "first_detected": "2026-02-24T13:07:28+00:00",
-        "last_seen": "2026-02-24T13:07:28+00:00"
+        "last_seen": "2026-02-24T13:07:28+00:00",
+        "removed_at": "2026-02-24T13:17:50+00:00"
     }
 ]
