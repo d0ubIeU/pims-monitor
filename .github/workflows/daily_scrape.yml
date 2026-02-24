@@ -39,17 +39,28 @@ jobs:
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
 
-      - name: Create Alert Issue
+      - name: Create Detailed Alert Issue
         if: steps.scraper.outcome == 'failure'
         run: |
-          DETAILED_INFO="${{ steps.scraper.outputs.details }}"
-          if [ -z "$DETAILED_INFO" ]; then
-            DETAILED_INFO="Changes detected or script error occurred."
+          # Retrieve the detailed list of changes
+          CHANGES="${{ steps.scraper.outputs.details }}"
+          if [ -z "$CHANGES" ]; then
+            CHANGES="No specific details available. Please check the commit diff or script logs."
           fi
+
+          echo "Change detected. Creating GitHub Issue."
           
           gh issue create \
-            --title "⚠️ Alert: BfDI Website Change Detected (${{ env.CURRENT_DATE }})" \
-            --body "Changes: $DETAILED_INFO"
+            --title "⚠️ Alert: BfDI PIMS Registry Change Detected (${{ env.CURRENT_DATE }})" \
+            --body "### 🔍 Scraper Update Summary
+            **Date:** ${{ env.CURRENT_DATE }}
+            **Status:** Content Change or Deactivation Detected
+            
+            #### Detected Changes:
+            $CHANGES
+            
+            Detailed changes can be viewed in the updated [pims_registry.json](${{ github.server_url }}/${{ github.repository }}/blob/main/pims_registry.json)."
+          
           exit 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
