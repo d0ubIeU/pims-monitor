@@ -31,15 +31,15 @@ $context = stream_context_create($options);
 $html = @file_get_contents($bfdiUrl, false, $context);
 
 if (!$html) {
-    echo "❌ Error: Could not fetch the website (" . date('Y-m-d H:i:s') . ").\n";
+    fwrite(STDERR, "❌ Error: Could not fetch the website (" . date('Y-m-d H:i:s') . ").\n");
     exit(1);
 }
 
-// Load existing data for comparison and history
+// Load existing data for comparison and history tracking
 $oldRegistry = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
 if (!is_array($oldRegistry)) $oldRegistry = [];
 
-// Index old data by name for faster lookup
+// Index old data by name for efficient lookup
 $historyMap = [];
 foreach ($oldRegistry as $item) {
     $historyMap[$item['name']] = $item;
@@ -62,7 +62,7 @@ foreach ($nodes as $node) {
         $provider = trim($matches[2]);
         $recognitionDate = trim($matches[3]);
         
-        // Logic: Keep old first_detected or set new one
+        // Retain initial detection date or set current if new
         $firstDetected = isset($historyMap[$name]) ? $historyMap[$name]['first_detected'] : date('c');
 
         $currentEntries[$name] = [
@@ -71,38 +71,38 @@ foreach ($nodes as $node) {
             'date'           => $recognitionDate,
             'status'         => 'Verified',
             'first_detected' => $firstDetected,
-            'last_seen'      => date('c')
+            'last_seen'      => date('c') // Always updated to current run time
         ];
     }
 }
 
 // --- PHASE 3: Stability Check ---
 if (empty($currentEntries)) {
-    echo "❌ Error: No providers found. Possible layout change on website.\n";
+    fwrite(STDERR, "❌ Error: No providers found. Possible layout change on website.\n");
     exit(1);
 }
 
-// --- PHASE 4: Merging & History ---
+// --- PHASE 4: Merging & Change Detection ---
 $finalRegistry = $currentEntries;
-$hasChanges = false;
+$hasAlertableChanges = false;
 $changeDetails = [];
 
-// Check for removed or modified entries
+// Process removed or modified entries from history
 foreach ($historyMap as $name => $oldItem) {
     if (!isset($currentEntries[$name])) {
-        // Entry is no longer on the website -> Mark as 'removed'
+        // Entry disappeared from website -> Mark as 'removed'
         if ($oldItem['status'] !== 'removed') {
             $oldItem['status'] = 'removed';
             $oldItem['removed_at'] = date('c');
-            $hasChanges = true;
+            $hasAlertableChanges = true;
             $changeDetails[] = "🗑️ Deactivated: $name";
         }
         $finalRegistry[$name] = $oldItem;
     } else {
-        // Entry still exists -> check if content changed
+        // Check for content updates (Provider name or Recognition date)
         $current = $currentEntries[$name];
         if ($current['provider'] !== $oldItem['provider'] || $current['date'] !== $oldItem['date'] || $oldItem['status'] === 'removed') {
-            $hasChanges = true;
+            $hasAlertableChanges = true;
             if ($oldItem['status'] === 'removed') {
                 $changeDetails[] = "♻️ Reactivated: $name";
             } else {
@@ -112,32 +112,30 @@ foreach ($historyMap as $name => $oldItem) {
     }
 }
 
-// Check for brand new entries
+// Detect brand new entries
 foreach ($currentEntries as $name => $item) {
     if (!isset($historyMap[$name])) {
-        $hasChanges = true;
+        $hasAlertableChanges = true;
         $changeDetails[] = "🆕 New: $name";
     }
 }
 
-// --- PHASE 5: Persistence & Output ---
-if ($hasChanges) {
-    // Sort by name for a clean JSON structure
-    ksort($finalRegistry);
-    $outputData = array_values($finalRegistry);
-    
-    file_put_contents($dataFile, json_encode($outputData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    
-    $fullMessage = implode(" | ", $changeDetails);
-    echo "ALARM: " . $fullMessage . "\n";
+// --- PHASE 5: Persistence & GitHub Communication ---
+// Sort by name for a consistent JSON structure
+ksort($finalRegistry);
+$outputData = array_values($finalRegistry);
+file_put_contents($dataFile, json_encode($outputData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
+if ($hasAlertableChanges) {
+    $fullMessage = implode(" | ", $changeDetails);
+    
+    // Write summary to GitHub Output for Step 6
     $outputFile = getenv('GITHUB_OUTPUT');
     if ($outputFile) {
         file_put_contents($outputFile, "details=$fullMessage" . PHP_EOL, FILE_APPEND);
     }
-    exit(1);
+    exit(1); // Trigger Issue Alert
 } else {
     echo "✅ Status Stable (" . count($currentEntries) . " verified services) as of " . date('Y-m-d H:i:s') . "\n";
-    exit(0);
+    exit(0); // Regular exit, no Issue
 }
-
