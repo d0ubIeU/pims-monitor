@@ -12,7 +12,7 @@ Contributions are welcome to ensure this monitoring tool remains reliable as gov
 3. **Submit a PR:** Provide a clear description of your changes and why they are necessary for maintaining compliance monitoring.
 
 ### Knowledge Sharing & Legal Discussion
-We explicitly encourage using the [GitHub Issues](https://github.com/d0ubIeU/pims-monitor/issues) for an exchange on the **practical and legal implementation** of the EinwV. 
+We explicitly encourage using the [GitHub Discussions](https://github.com/d0ubIeU/pims-monitor/discussions) for an exchange on the **practical and legal implementation** of the EinwV. 
 
 If you want to contribute beyond code:
 * **Share Implementation Paths:** How do you handle the public key infrastructure (PKI) once a new PIMS is detected?
