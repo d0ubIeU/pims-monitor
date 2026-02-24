@@ -90,16 +90,25 @@ foreach ($currentEntries as $name => $item) {
     }
 }
 
-// --- PHASE 4: Persistence ---
-$finalRegistry = $currentEntries;
+// --- PHASE 4: Merging & History Preservation ---
+$finalRegistry = $currentEntries; // Start with what we found today
+
 foreach ($historyMap as $name => $oldItem) {
     if (!isset($currentEntries[$name])) {
+        // Entry is MISSING from the website -> Keep it, but mark as removed
         $oldItem['status'] = 'removed';
-        $oldItem['removed_at'] = $oldItem['removed_at'] ?? date('c');
+        
+        // Only set removed_at if it's not already set from a previous run
+        if (!isset($oldItem['removed_at'])) {
+            $oldItem['removed_at'] = date('c');
+        }
+        
+        // Important: Add it to the final registry so it stays in the JSON
         $finalRegistry[$name] = $oldItem;
     }
 }
 
+// Sort for a clean file structure
 ksort($finalRegistry);
 file_put_contents($dataFile, json_encode(array_values($finalRegistry), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
