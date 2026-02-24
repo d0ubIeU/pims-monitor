@@ -38,24 +38,24 @@ jobs:
         run: echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       # Step 4: Executes the PHP scraping script
-      # It expects the script to be named 'monitor.php' in the root directory
       - name: Run PHP Scraper
+        id: scraper
         run: php monitor.php
+        continue-on-error: true # Allow the Commit, when Skript "failed" (for Mail)
 
-      # Step 5: Automatically detects changes in the JSON file and pushes them
-      # If 'pims_registry.json' has changed, a new commit is created
+      # Step 5: Commit changes
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          # Uses the date variable created in Step 3 for the commit description
           commit_message: "Auto-Update: PIMS Registry updated on ${{ env.CURRENT_DATE }}"
-          
-          # Only tracks changes in this specific file to prevent accidental commits
           file_pattern: 'pims_registry.json'
-          
-          # Defines the identity of the bot performing the commit
           commit_user_name: "BfDI Monitor Bot"
           commit_user_email: "bfdi-monitor-bot@users.noreply.github.com"
-          
-          # Ensures the commit is correctly attributed to the Action
-          commit_author: "BfDI Monitor Bot <bfdi-monitor-bot@users.noreply.github.com>"
+
+      # Step 6: Final Error-Check for E-Mail
+      - name: Check for Alert
+        if: steps.scraper.outcome == 'failure'
+        run: |
+          echo "Changes detected or error occurred. Triggering notification."
+          exit 1
+
