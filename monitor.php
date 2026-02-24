@@ -17,6 +17,7 @@
  * License-URL:    https://www.mozilla.org/MPL/2.0/
  */
 
+
 // Configuration
 $bfdiUrl = 'https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html';
 $dataFile = './pims_registry.json';
@@ -26,7 +27,15 @@ $options = ['http' => ['header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Wi
 $context = stream_context_create($options);
 $html = @file_get_contents($bfdiUrl, false, $context);
 
-if (!$html) exit(1);
+if (!$html) {
+    $errorMessage = "🚨 CRITICAL: Could not fetch the website. The server might be down.";
+    $outputFile = getenv('GITHUB_OUTPUT');
+    if ($outputFile) {
+        file_put_contents($outputFile, "details=$errorMessage" . PHP_EOL, FILE_APPEND);
+    }
+    fwrite(STDERR, $errorMessage . "\n");
+    exit(1);
+}
 
 // Load existing data
 $oldRegistry = file_exists($dataFile) ? json_decode(file_get_contents($dataFile), true) : [];
@@ -60,18 +69,29 @@ foreach ($nodes as $node) {
             'date'           => $date,
             'status'         => 'Verified',
             'first_detected' => $historyMap[$name]['first_detected'] ?? date('c'),
-            'last_seen'      => date('c') // Always update timestamp
+            'last_seen'      => date('c')
         ];
     }
 }
 
-if (empty($currentEntries)) exit(1);
+// --- PHASE 3: Stability Check ---
+if (empty($currentEntries)) {
+    $errorMessage = "🚨 CRITICAL: No providers found! The website structure might have changed.";
+    
+    $outputFile = getenv('GITHUB_OUTPUT');
+    if ($outputFile) {
+        file_put_contents($outputFile, "details=$errorMessage" . PHP_EOL, FILE_APPEND);
+    }
+    
+    fwrite(STDERR, $errorMessage . "\n");
+    // We exit BEFORE Phase 4 to keep the old pims_registry.json intact
+    exit(1); 
+}
 
-// --- PHASE 3: Comparison Logic (Content only) ---
+// --- PHASE 3.5: Comparison Logic (Content only) ---
 $hasAlertableChanges = false;
 $changeDetails = [];
 
-// Check for removed or modified providers
 foreach ($historyMap as $name => $oldItem) {
     if ($oldItem['status'] === 'Verified' && !isset($currentEntries[$name])) {
         $hasAlertableChanges = true;
@@ -82,7 +102,6 @@ foreach ($historyMap as $name => $oldItem) {
     }
 }
 
-// Check for new providers
 foreach ($currentEntries as $name => $item) {
     if (!isset($historyMap[$name])) {
         $hasAlertableChanges = true;
@@ -91,24 +110,18 @@ foreach ($currentEntries as $name => $item) {
 }
 
 // --- PHASE 4: Merging & History Preservation ---
-$finalRegistry = $currentEntries; // Start with what we found today
+$finalRegistry = $currentEntries; 
 
 foreach ($historyMap as $name => $oldItem) {
     if (!isset($currentEntries[$name])) {
-        // Entry is MISSING from the website -> Keep it, but mark as removed
         $oldItem['status'] = 'removed';
-        
-        // Only set removed_at if it's not already set from a previous run
         if (!isset($oldItem['removed_at'])) {
             $oldItem['removed_at'] = date('c');
         }
-        
-        // Important: Add it to the final registry so it stays in the JSON
         $finalRegistry[$name] = $oldItem;
     }
 }
 
-// Sort for a clean file structure
 ksort($finalRegistry);
 file_put_contents($dataFile, json_encode(array_values($finalRegistry), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
@@ -119,7 +132,7 @@ if ($hasAlertableChanges) {
     if ($outputFile) {
         file_put_contents($outputFile, "details=$fullMessage" . PHP_EOL, FILE_APPEND);
     }
-    exit(1); // Trigger Alert in Workflow
+    exit(1); 
 }
 
 exit(0);
