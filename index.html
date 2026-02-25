@@ -114,14 +114,14 @@
 
     <header style="margin-bottom: 5rem;">
         <h1 style="display: flex; align-items: center; gap: 0.5em; line-height: 1;">
-            <img src="https://avatars.githubusercontent.com" alt="d0ubIeU" class="profile-img-inline">
+            <img src="https://repository-images.githubusercontent.com/1164931105/7ca09d90-9f89-4996-9f0d-3e049374d2b6" alt="PIMS-Monitor-Logo" class="profile-img-inline">
             <span>PIMS Monitor</span>
         </h1>
         <p class="lang-de" style="font-size: 1.4rem; font-weight: 500; border-left: 8px solid var(--accent); padding-left: 1.5rem;">
-            Live-Status der zertifizierten PIMS-Anbieter (BfDI).
+            Live-Status der zertifizierten PIMS-Anbieter. Quelle: <a href="https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html" target="_blank" style="color:var(--accent); text-decoration:underline;">BfDI Registrierungs Seite</a>
         </p>
         <p class="lang-en" style="font-size: 1.4rem; font-weight: 500; border-left: 8px solid var(--accent); padding-left: 1.5rem;">
-            Live status of certified PIMS providers (BfDI).
+            Live status of certified PIMS providers. Source: <a href="https://www.bfdi.bund.de/DE/Fachthemen/Inhalte/Telefon-Internet/Einwilligungsverwaltung/Einwilligungsverwaltung.html" target="_blank" style="color:var(--accent); text-decoration:underline;">BfDI Registry Site</a>
         </p>
     </header>
 
@@ -138,17 +138,20 @@
         <p class="lang-de"><strong>d0ubIeU</strong> &copy; 2026 – Gebaut mit Fokus auf Barrierefreiheit und ❤️ & ☕️.</p>
         <p class="lang-en"><strong>d0ubIeU</strong> &copy; 2026 – Built with focus on accessibility and ❤️ & ☕️.</p>
         <nav class="footer-links" aria-label="Footer Links">
-            <a href="https://github.com/d0ubIeU">GitHub Profile</a>
+            <a href="https://github.com/pims-monitor" target="_blank" rel="noopener">
+                <svg class="gh-icon" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                <span>GitHub Repository</span>
+            </a>
             <a href="https://www.mit-ms.de" class="lang-de" target="_blank" rel="noopener">Multiple Sklerose Community</a>
             <a href="https://www.mit-ms.de" class="lang-en" target="_blank" rel="noopener">Multiple Sclerosis Community</a>
-            <a href="https://d0ubieu.github.io" class="lang-de">PIMS Projekt</a>
-            <a href="https://d0ubieu.github.io" class="lang-en">PIMS Project</a>
+            <a href="https://d0ubieu.github.io/pims-monitor" class="lang-de">PIMS Projekt</a>
+            <a href="https://d0ubieu.github.io/pims-monitor" class="lang-en">PIMS Project</a>
         </nav>
     </div>
 </footer>
 
 <script>
-    /* Fetch and render logic */
+    /* English Comment: Logic for handling dynamic dates and registry status */
     async function initRegistry() {
         try {
             const response = await fetch('pims_registry.json');
@@ -158,16 +161,34 @@
 
             list.innerHTML = data.map(item => {
                 const isVerified = item.status.toLowerCase() === 'verified';
-                const date = new Date(item.last_seen).toLocaleString();
+                // Toggle between removed_at and last_seen for detail info
+                const detailDate = isVerified 
+                    ? new Date(item.last_seen).toLocaleString() 
+                    : new Date(item.removed_at).toLocaleString();
+                
                 return `
                     <div class="entry-card">
                         <div>
                             <h2 style="margin:0; font-size:1.8rem;">${item.name}</h2>
                             <p style="margin:0.2rem 0 0.5rem 0; opacity:0.8;">${item.provider}</p>
-                            <small style="display:block; opacity:0.6;">
-                                <span class="lang-de">Zuletzt geprüft: ${date}</span>
-                                <span class="lang-en">Last checked: ${date}</span>
-                            </small>
+                            
+                            <div style="font-size:0.9rem; margin-top:0.5rem;">
+                                ${isVerified ? `
+                                    <div style="color: #10b981; font-weight:700;">
+                                        <span class="lang-de">Zugelassen am: ${item.date}</span>
+                                        <span class="lang-en">Certified on: ${item.date}</span>
+                                    </div>
+                                ` : ''}
+                                <small style="display:block; opacity:0.6; margin-top:4px;">
+                                    ${isVerified ? `
+                                        <span class="lang-de">Zuletzt geprüft: ${detailDate}</span>
+                                        <span class="lang-en">Last checked: ${detailDate}</span>
+                                    ` : `
+                                        <span class="lang-de">Entfernt am: ${detailDate}</span>
+                                        <span class="lang-en">Removed on: ${detailDate}</span>
+                                    `}
+                                </small>
+                            </div>
                         </div>
                         <div class="status-badge ${isVerified ? 'status-verified' : 'status-removed'}">
                             ${item.status}
@@ -180,7 +201,7 @@
         }
     }
 
-    /* State Management */
+    /* State Management for Themes and Language */
     function setTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('hub_theme', theme);
