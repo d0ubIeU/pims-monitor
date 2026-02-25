@@ -66,9 +66,19 @@ The data is stored in a structured audit-trail format:
 *Note: If a provider is removed from the official website, the status changes to `removed` and a `removed_at` timestamp is added, while all original dates are preserved.*
 
 ## ⚖️ Legal Disclaimer & License
-This tool is a technical aid for fulfilling the **Duty of Care (Sorgfaltspflicht)** under **Section 18 Para. 2 EinwV**. Automated requests are performed at a low frequency (once daily) to respect the server load of the German Federal Authorities. According to **Section 5 of the German Copyright Act (UrhG)**, official works such as registries and announcements are not subject to copyright protection.
 
-**License:** This project is licensed under the [Mozilla Public License 2.0 (MPL 2.0)](https://www.mozilla.org).
+### 1. Official Status & Purpose
+This tool is a private Open-Source initiative and is **not** an official service of the Federal Commissioner for Data Protection and Freedom of Information (BfDI). It serves as a technical aid for fulfilling the **Duty of Care (Sorgfaltspflicht)** under **Section 18 Para. 2 EinwV** by providing a machine-readable mirror of the official registry.
+
+### 2. Limitation of Liability (No Guarantee)
+- **Data Accuracy:** The data is provided "as is". While we strive for correctness, the maintainers do not guarantee the accuracy, completeness, or real-time synchronization with the official BfDI registry.
+- **Responsibility:** Use of this data for automated consent decisions is at the user's own risk. Website operators remain solely responsible for ensuring their implementation complies with TDDDG, GDPR, and EinwV. 
+- **No Liability:** To the extent permitted by law, the author shall not be liable for any damages (e.g., legal fines, business loss) resulting from the use of or reliance on this data.
+
+### 3. Technical Compliance & Copyright
+Automated requests are performed at a low frequency (once daily) to respect the server load of the German Federal Authorities. According to **Section 5 of the German Copyright Act (UrhG)**, official works such as registries and announcements are not subject to copyright protection.
+
+**License:** This project is licensed under the [Mozilla Public License 2.0 (MPL 2.0)](https://www.mozilla.org/MPL/2.0/).
 
 **Author:** d0ubIeU  
 **Repository:** [https://github.com/d0ubIeU/pims-monitor](https://github.com/d0ubIeU/pims-monitor)
