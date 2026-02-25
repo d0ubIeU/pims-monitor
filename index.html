@@ -99,9 +99,10 @@
             padding: 0.5rem 1.2rem; border-radius: 2rem; font-weight: 800; font-size: 0.85rem; 
             text-transform: uppercase; border: 3px solid currentColor;
         }
-        
+        .certified { color: #10b981; font-weight:700; }
         .status-verified { color: #10b981; }
         .status-removed { color: #ef4444; }
+        :root[data-theme="high-contrast"] .certified { color: #ffff00; opacity: 1 }
         :root[data-theme="high-contrast"] .status-verified { background-color: #ffff00; color: #000000; }
         :root[data-theme="high-contrast"] .status-removed { background-color: #ffffff; color: #000000; }
         
@@ -176,7 +177,7 @@
 </footer>
 
 <script>
-    /* English Comment: Logic for handling dynamic dates and registry status */
+    /* Logic for handling dynamic dates and registry status */
     async function initRegistry() {
         try {
             const response = await fetch('pims_registry.json');
@@ -195,16 +196,16 @@
                     <div class="entry-card">
                         <div>
                             <h2 style="margin:0; font-size:1.8rem;">${item.name}</h2>
-                            <p style="margin:0.2rem 0 0.5rem 0; opacity:0.8;">${item.provider}</p>
+                            <p style="margin:0.2rem 0 0.5rem 0; opacity:0.9;">${item.provider}</p>
                             
                             <div style="font-size:0.9rem; margin-top:0.5rem;">
                                 ${isVerified ? `
-                                    <div style="color: #10b981; font-weight:700;">
+                                    <div class="certified">
                                         <span class="lang-de">Zugelassen am: ${item.date}</span>
                                         <span class="lang-en">Certified on: ${item.date}</span>
                                     </div>
                                 ` : ''}
-                                <small style="display:block; opacity:0.6; margin-top:4px;">
+                                <small style="display:block; opacity:0.9; margin-top:4px;">
                                     ${isVerified ? `
                                         <span class="lang-de">Zuletzt geprüft: ${detailDate}</span>
                                         <span class="lang-en">Last checked: ${detailDate}</span>
